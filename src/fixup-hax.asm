@@ -5,9 +5,9 @@ bits 64
 %include "elf.inc"
 %include "linkscr.inc"
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+org 0x10000
 
-[section .header]
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 global _EHDR
 _EHDR:
@@ -27,15 +27,19 @@ ehdr:
     dw ehdr.end - ehdr  ; e_ehsize
     dw phdr.load - phdr.dynamic ; e_phentsize
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 global _PHDR
 _PHDR:
 phdr:
 phdr.interp:
     dd PT_INTERP        ; p_type    ; e_phnum, e_shentsize
     dd 0                ; p_flags   ; e_shnum, e_shstrndx
+
 ehdr.end:
     dq interp - ehdr    ; p_offset
     dq interp, interp   ; p_vaddr, p_paddr
+
     dq interp.end - interp ; p_filesz
     dq interp.end - interp ; p_memsz
     dq 0                ; p_align
@@ -43,31 +47,30 @@ phdr.dynamic:
     dd PT_DYNAMIC       ; p_type    ; e_phnum, e_shentsize
     dd 0                ; p_flags   ; e_shnum, e_shstrndx
     dq dynamic - ehdr   ; p_offset
-    dq dynamic, 0       ; p_vaddr, p_paddr
-    dq dynamic.end - dynamic ; p_filesz
-    dq dynamic.end - dynamic ; p_memsz
-    dq 0                ; p_align
+    dq dynamic;, 0       ; p_vaddr, p_paddr
+
+global _INTERP
+_INTERP:
+interp:
+    db "/lib64/ld-linux-x86-64.so.2",0
+interp.end:
+    dd 0
+
+    ;dq dynamic.end - dynamic ; p_filesz
+    ;dq dynamic.end - dynamic ; p_memsz
+    ;dq 0                ; p_align
+
 phdr.load:
     dd PT_LOAD          ; p_type
     dd PHDR_R | PHDR_W | PHDR_X ; p_flags
     dq 0                ; p_offset
     dq ehdr, 0          ; p_vaddr, p_paddr
-    dq END.FILE-ehdr;_smol_total_filesize ; p_filesz
-    dq END.MEM-ehdr;_smol_total_memsize ; p_memsz
-    dq 0x1000           ; p_align
+    dq END.FILE-ehdr ; p_filesz
+    dq END.MEM-ehdr ; p_memsz
+    dd 0x1000           ; p_align
 phdr.end:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-[section .rodata.interp]
-
-global _INTERP
-_INTERP:
-interp:
-    db "/lib64/ld-linux-x86-64.so.2", 0
-interp.end:
-
-[section .rodata.dynamic]
 
 global _DYNAMIC
 _DYNAMIC:
@@ -75,10 +78,10 @@ dynamic:
 dynamic.strtab:
     dq DT_STRTAB        ; d_tag
     dq _dynstr          ; d_un.d_ptr
-dynamic.debug:
-    dq DT_DEBUG         ; d_tag
-_DEBUG:
-    dq 0                ; d_un.d_ptr
+;dynamic.debug:
+;    dq DT_DEBUG         ; d_tag
+;_DEBUG:
+;    dq 0                ; d_un.d_ptr
 dynamic.needed:
     dq DT_NEEDED
     dq (_symbols.libc - _dynstr)
@@ -90,116 +93,109 @@ dynamic.symtab:
 dynamic.pltgot:
     dq DT_PLTGOT
     dq _gotplt
-dynamic.pltrelsz:
-    dq DT_PLTRELSZ
-    dq 24 ; sizeof(Elf64_Rela)
-dynamic.pltrel:
-    dq DT_PLTREL
-    dq DT_RELA
+;dynamic.pltrelsz:
+;    dq DT_PLTRELSZ
+;    dq 24 ; sizeof(Elf64_Rela)
+;dynamic.pltrel:
+;    dq DT_PLTREL
+;    dq DT_RELA
 dynamic.jmprel:
     dq DT_JMPREL
     dq _rela_plt
-
-; maybe let's give ld.so a bit more info
-; strsz (size of .dynstr), syment (size of one .dynsym)
-
 dynamic.end:
-    dq DT_NULL
+    db DT_NULL
 
-[section .rodata]
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-global _dynstr
-_dynstr:
-    db 0
-    _symbols.libc: db "libc.so.6",0
-    _symbols.libc.puts: db "puts",0
-
-global _rela_plt
-_rela_plt:
-    ;; entry 0
-    dq ehdr ; address
-    dq ELF_R_INFO(1,R_JUMP_SLOT) ; symidx, type
-    dq 0 ; addend
+;global _rela_plt
+;_rela_plt:
+;    ;; entry 0
+;    dq ehdr ; address
+;    dq ELF_R_INFO(0,R_JUMP_SLOT) ; symidx, type
+;    dq 0 ; addend
 
 global _dynsym
 _dynsym:
     ;; entry 0
-    dd 0 ; name
-    db 0 ; info
-    db 0 ; other
-    dw 0 ; shndx
-    dq 0 ; value
-    dq 0 ; size
-    ;; entry 1
     dd _symbols.libc.puts - _dynstr ; name
     db 0 ; info
-    db 0 ; other
-    dw 0 ; shndx
-    dq 0 ; value
-    dq 0 ; size
-
+    ; rest is ignored
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 %define SYS_exit 60
 
-[section .text]
-
 global _smol_start
 _smol_start:
-    ;mov rax, [rel _DEBUG]
-    ;mov rax, [rax + R_DEBUG_MAP_OFF] ; linkmap
-    ;mov rbx, [rel _gotplt]
-    mov rcx, [rel linkmap]
-    mov rdx, [rel fixup] ; _dl_runtime_resolve_xsavec on my machine
+     lea rsi, [rel _gotplt+8]
+   lodsq ; linkmap -> rax
+    xchg rax, rdx
+   lodsq ; fixup -> rax
 
-    lea rsi, [rel somestr]
-    lea rdi, [rel somestr]
+    call resolve_first
+retaddr:
+         ; and now we can call the resolved symbol
+     lea rdi, [rel symname]
+    call rax
+         ; more symbols can also be looked up by calling [ehdr]
 
-    ;.loopme: jmp short .loopme
+     mov al, SYS_exit
+;    push 42
+;     pop rdi
+ syscall ; %rdi, %rsi, %rdx, %r10, %r8 and %r9
 
-    call bluh
+resolve_first:
+      pop rsi
+     push rsi
+     ;mov rsi, [rsp]
+      sub si, retaddr-symname
 
-    lea rsi, [rel somestr]
-    lea rdi, [rel somestr]
+         ; %rdi, %rsi, %rdx, %rcx, %r8 and %r9
+         ; rdi = handle (RTLD_DEFAULT)
+         ; rsi = name (symbol name)
+         ; rdx = who (NULL is fine)
+    push 0   ; symbol ordinal (_dl_sym)
+    push rdx ; link_map
 
-    call [ehdr]
-
-    mov al, SYS_exit
-    syscall
-
-bluh:
     push 0
-    push rcx
-     jmp rdx
+    ;push 0
+     pop rdi ; handle (RTLD_DEFAULT)
+    push rdi
+     pop rdx ; who (NULL, "If the address is not recognized the call comes from
+             ; the main program (we hope)" -glibc src)
+     ;lea rsi, [rel symname] ; symbol name
 
-[section .rodata]
-
-somestr:
-    db "hello world",0
+     jmp rax
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-[section .data.got.plt]
+symname:
+    db "puts",0
 
-global _GLOBAL_OFFSET_TABLE_
-_GLOBAL_OFFSET_TABLE_:
-_gotplt:
-    dq _DYNAMIC
-linkmap:
-    dq 0 ; address of link map, filled in by ld.so
-fixup:
-    dq 0 ; address of _dl_runtime_resolve, which is a trampoline calling _dl_fixup
+;helloworld:
+;    db "hello, world!",0
+
+global _dynstr
+_dynstr:
+;    db 0
+    _symbols.libc: db "libc.so.6",0
+    _symbols.libc.puts: db "_dl_sym",0
+
+global _rela_plt
+_rela_plt:
+    dq ehdr ; address
+    db ELF_R_INFO(0,R_JUMP_SLOT) ; symidx, type
+    ;dq 0 ; addend
 
 END.FILE:
 
-[section .data]
+; yep, GOT in .bss
+global _GLOBAL_OFFSET_TABLE_
+_GLOBAL_OFFSET_TABLE_:
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-[section .bss]
-
-
+_gotplt: resq 0;db _DYNAMIC ; not a requirement!
+linkmap: resq 0 ; address of link map, filled in by ld.so
+fixup:   resq 0 ; address of _dl_runtime_resolve, which is a trampoline calling _dl_fixup
 
 END.MEM:
 
