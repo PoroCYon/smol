@@ -41,7 +41,7 @@ LIBS = $(filter-out -pthread,$(shell pkg-config --libs sdl2)) -lX11 -lm -lc #-lG
 PWD ?= .
 
 SMOLFLAGS = --smolrt "$(PWD)/rt" --smolld "$(PWD)/ld" \
-    --verbose -g #-fuse-nx #--keeptmp
+  --verbose -g -fuse-dlfixup-loader #-fuse-nx --keeptmp
 # -fuse-dnload-loader -fskip-zero-value -fuse-nx -fskip-entries -fuse-dt-debug
 # -fuse-dl-fini -fno-start-arg -funsafe-dynamic
 

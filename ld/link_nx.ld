@@ -13,17 +13,23 @@ SECTIONS {
   _smol_origin = .;
 
   .header : { KEEP(*(.header)) } :rodttxt
-  .dynamic : { *(.dynamic .rodata.dynamic) } :dyn :rodttxt
-  .interp : { *(.interp .rodata.interp) } :interp /*:rodttxt*/
+  .dynamic : {
+      KEEP(*(.dynamic .rodata.dynamic .interp))
+      *(.dynsym .dynstr .rela.plt)
+  } :dyn :rodttxt
+  /*.interp : { KEEP(*(.interp .rodata.interp)) } :interp*/ /*:rodttxt*/
+
+  /*.dynstuff : { *(.dynsym .dynstr .rel.text .rela.plt .got.plt .gnu.linkonce.* .plt .plt.got) }*/ /*:dyn*/ /*:rodttxt*/
 
   _smol_data_start = .;
   _smol_data_off = _smol_data_start - _smol_origin /*- _smol_data_align_size*/;
   .data : {
      KEEP(*(.data.smolgot .data.got.plt))
+     KEEP(*(.data.got.plt.start))
+     KEEP(*(.data.got.plt))
      *(.data .data.* .tdata .tdata.*)
   } :rwdt
 
-  .dynstuff : { *(.symtab .strtab .shstrtab .rel.text .got.plt .gnu.linkonce.* .plt .plt.got) } /*:dyn*/ :rodttxt
   _smol_data_end = .;
   _smol_data_size = _smol_data_end - _smol_data_start;
 
@@ -32,6 +38,7 @@ SECTIONS {
   _smol_bss_start = .;
   _smol_bss_off = _smol_bss_start - _smol_origin;
   .bss : {
+      KEEP(*(.bss.got.plt))
       *(.bss .bss.* .tbss .tbss.* .sbss .sbss.*)
   } :rwdt
   _smol_bss_end = .;
@@ -58,8 +65,8 @@ SECTIONS {
   _smol_text_start = .;
   _smol_text_off = _smol_data_end - _smol_origin;
   .text . : AT(_smol_data_end) {
-     KEEP(*(.rodata.dynamic))
-     KEEP(*(.rodata.interp .rodata.neededlibs))
+     /*KEEP(*(.rodata.dynamic))
+     KEEP(*(.rodata.interp .rodata.neededlibs))*/
      *(.rdata .rdata.* .rodata .rodata.*)
      KEEP(*(.text.startup.smol))
      KEEP(*(.text.startup._start))

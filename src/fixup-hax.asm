@@ -72,6 +72,13 @@ phdr.end:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;global _INTERP
+;_INTERP:
+;interp:
+;    db "/lib64/ld-linux-x86-64.so.2",0
+;interp.end:
+;    dd 0
+
 global _DYNAMIC
 _DYNAMIC:
 dynamic:
@@ -193,9 +200,9 @@ END.FILE:
 global _GLOBAL_OFFSET_TABLE_
 _GLOBAL_OFFSET_TABLE_:
 
-_gotplt: resq 0;db _DYNAMIC ; not a requirement!
-linkmap: resq 0 ; address of link map, filled in by ld.so
-fixup:   resq 0 ; address of _dl_runtime_resolve, which is a trampoline calling _dl_fixup
+_gotplt: resq 1;db _DYNAMIC ; not a requirement!
+linkmap: resq 1 ; address of link map, filled in by ld.so
+fixup:   resq 1 ; address of _dl_runtime_resolve, which is a trampoline calling _dl_fixup
 
 END.MEM:
 

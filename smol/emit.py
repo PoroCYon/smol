@@ -164,9 +164,10 @@ def output_amd64(libraries, nx, hashid, outf, det):
 
     outf.write('%include "header64.asm"\n')
     outf.write('dynamic.needed:\n')
-    for library in libraries:
-        outf.write('    dq 1;DT_NEEDED\n')
-        outf.write('    dq (_symbols.{} - _strtab)\n'.format(shorts[library]))
+    for library, symrels in libraries.items():
+        if (len(symrels) > 0):
+            outf.write('    dq 1;DT_NEEDED\n')
+            outf.write('    dq (_symbols.{} - _strtab)\n'.format(shorts[library]))
     outf.write("""\
 dynamic.symtab:
     dq DT_SYMTAB        ; d_tag
@@ -182,7 +183,8 @@ dynamic.end:
     outf.write('global _strtab\n')
     outf.write('_strtab:\n')
     for library, symrels in libraries.items():
-        outf.write('\t_symbols.{}: db "{}",0\n'.format(shorts[library], library))
+        if (len(symrels) > 0):
+            outf.write('\t_symbols.{}: db "{}",0\n'.format(shorts[library], library))
 
     outf.write('[section .data.smolgot]\n')
 
