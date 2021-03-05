@@ -34,24 +34,32 @@ _smol_start:
 .loopme: jmp short .loopme
 %endif
 
-
-    lea rsi, [rel _gotplt.linkmap]
+   push _gotplt.linkmap
+    pop rsi
+   ;lea rsi, [rel _gotplt.linkmap]
   lodsq ; rcx = link_map
    xchg rax, rcx
   lodsq ; rax = _dl_fixup
 
+   push _symbols.libc._dl_sym
    push 0
    push 0
     pop rdx
     pop rdi
-    lea rsi, [rel _symbols.libc._dl_sym]
+    pop rsi
+   ;lea rsi, [rel _symbols.libc._dl_sym]
    call resolve_first
 .retaddr:
-    lea rsi, [rel _symbols]
-    lea rdi, [rel _gotplt.imports]
+   push _gotplt.imports
+   push _symbols
+    pop rsi
+    pop rdi
+   ;lea rsi, [rel _symbols]
+   ;lea rdi, [rel _gotplt.imports]
 .symloop:   ; rdi = RTLD_DEFAULT (0)
             ; rsi = name
             ; rdx = NULL
+       push 0
        push rdi
        push rsi
        push 0
@@ -69,16 +77,13 @@ _smol_start:
       stosq ; rax (retval) -> gotplt
 
             ; find end of string
-       xchg rsi, rdi
-       push -1
-        pop rcx
-        xor al, al
-repnz scasb
-       xchg rsi, rdi
-     ;lodsb ; read null terminator
-        mov al, byte [rsi] ; check first char of next string
+ .strend: lodsb
+            and al, al
+            jnz short .strend
+
+        mov al, byte [rsi]
         and al, al
-        jnz .symloop
+        jnz short .symloop
 
 ;   xor rbp, rbp ; still 0 from _dl_start_user
 %ifndef NO_START_ARG

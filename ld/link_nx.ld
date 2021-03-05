@@ -15,7 +15,8 @@ SECTIONS {
   .header : { KEEP(*(.header)) } :rodttxt
   .dynamic : {
       KEEP(*(.dynamic .rodata.dynamic .interp))
-      *(.dynsym .dynstr .rela.plt)
+      *(.dynsym .dynstr)
+      *(.rela.plt)
   } :dyn :rodttxt
   /*.interp : { KEEP(*(.interp .rodata.interp)) } :interp*/ /*:rodttxt*/
 

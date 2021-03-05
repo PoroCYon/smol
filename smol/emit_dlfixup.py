@@ -37,15 +37,15 @@ def output_dlfixup(arch, libraries, nx, outf, det):
 
     # need a few extra ones here & not in the template source because bah
     outf.write("""\
-dynamic.symtab:
-    dq DT_SYMTAB
-    dq _dynsym
-dynamic.pltgot:
-    dq DT_PLTGOT
-    dq _gotplt
-dynamic.jmprel:
-    dq DT_JMPREL
-    dq _rela_plt
+;dynamic.symtab:
+;    dq DT_SYMTAB
+;    dq _dynsym
+;dynamic.pltgot:
+;    dq DT_PLTGOT
+;    dq _gotplt
+;dynamic.jmprel:
+;    dq DT_JMPREL
+;    dq _rela_plt
 dynamic.end:
 %ifndef UNSAFE_DYNAMIC
     dq DT_NULL
