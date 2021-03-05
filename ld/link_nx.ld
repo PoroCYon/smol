@@ -40,11 +40,12 @@ SECTIONS {
 
   _smol_dataandheaderandbss_size = _smol_bss_end - _smol_origin;
 
-  /* segments must be page-aligned, both in memory and in the file. however, we
+  /*
+   * segments must be page-aligned, both in memory and in the file. however, we
    * don't want to put any padding in our file because that'd take up far too
    * much space, so what we do instead, is to map the file in two places: once
    * at _smol_origin+0, RW, for .data etc., and once at _smol_origin+0x1000,
-   * for .textµ
+   * for .text
    */
 
   _smol_text_align_start = .;
