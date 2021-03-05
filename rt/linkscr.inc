@@ -18,4 +18,5 @@ extern _smol_bss_end
 extern _smol_bss_size
 extern _smol_dataandbss_size
 extern _smol_total_memsize
+extern _smol_data_vma_org
 

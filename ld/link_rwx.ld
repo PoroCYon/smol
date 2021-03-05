@@ -16,6 +16,21 @@ SECTIONS {
   .dynamic : { *(.dynamic .rodata.dynamic) } :dyn :rodttxt
   .interp : { *(.interp .rodata.interp) } :interp /*:rodttxt*/
 
+  _smol_data_start = .;
+  _smol_data_off = _smol_data_start - _smol_origin;
+  .data : {
+     KEEP(*(.data.smolgot .data.got.plt))
+     *(.data .data.* .tdata .tdata.*)
+  } :rwdt
+
+  .dynstuff : { *(.symtab .strtab .shstrtab .rel.text .got.plt .gnu.linkonce.* .plt .plt.got) } /*:dyn*/ :rodttxt
+  _smol_data_end = .;
+  _smol_data_size = _smol_data_end - _smol_data_start;
+
+  _smol_dataandheader_size = _smol_data_end - _smol_origin;
+
+  _smol_dataandheaderandbss_size = _smol_dataandheader_size + _smol_bss_size;
+
   _smol_text_start = .;
   _smol_text_off = _smol_text_start - _smol_origin;
   .text : {
@@ -29,19 +44,6 @@ SECTIONS {
   _smol_text_end = .;
   _smol_text_size = _smol_text_end - _smol_text_start;
 
-  _smol_textandheader_size = _smol_text_end - _smol_origin;
-
-  _smol_data_start = .;
-  _smol_data_off = _smol_data_start - _smol_origin;
-  .data : {
-     KEEP(*(.data.smolgot))
-     *(.data .data.* .tdata .tdata.*)
-  } :rwdt
-
-  .dynstuff : { *(.symtab .strtab .shstrtab .rel.text .got.plt .gnu.linkonce.* .plt .plt.got) } /*:dyn*/ :rodttxt
-  _smol_data_end = .;
-  _smol_data_size = _smol_data_end - _smol_data_start;
-
   _smol_total_filesize = . - _smol_origin;
 
   _smol_bss_start = .;
@@ -51,8 +53,6 @@ SECTIONS {
   } :rwdt
   _smol_bss_end = .;
   _smol_bss_size = _smol_bss_end - _smol_bss_start;
-
-  _smol_dataandbss_size = _smol_bss_end - _smol_data_start;
 
   _smol_total_memsize = . - _smol_origin;
 

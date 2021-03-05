@@ -26,28 +26,6 @@ ehdr:
     dw (phdr.load - phdr.dynamic) ; e_phentsize
 %ifdef USE_NX
 %error "USE_NX not supported yet on i386 ('GOT' still needs RWX, and alignment has to be fixed)"
-;%ifdef USE_INTERP
-;    dw 4, 0            ; e_phnum, e_shentsize
-;%else
-;    dw 3, 0
-;%endif
-;.segments:
-;.segments.load.text:
-;    dd PT_LOAD
-;    dd _smol_origin
-;    dd _smol_text_start, 0
-;    dd _smol_textandheader_size
-;    dd _smol_textandheader_size
-;    dd (PHDR_R | PHDR_X)
-;    dd 0x1000
-;.segments.load.data:
-;    dd PT_LOAD
-;    dd _smol_data_off
-;    dd _smol_data_start, 0
-;    dd _smol_data_size
-;    dd _smol_dataandbss_size
-;    dd (PHDR_R | PHDR_W)
-;    dd 0x1;000
 %else
 global _PHDR
 _PHDR:

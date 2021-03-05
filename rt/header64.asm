@@ -82,10 +82,10 @@ phdr.load:
 phdr.load2:
     dd PT_LOAD
     dd PHDR_R | PHDR_W
-    dq _smol_data_off
-    dq _smol_data_start, 0
-    dq _smol_data_size
-    dq _smol_dataandbss_size
+    dq 0;_smol_data_off
+    dq _smol_data_vma_org,0 ;_smol_data_start, 0
+    dq _smol_total_filesize;_smol_data_size
+    dq _smol_total_memsize;_smol_dataandbss_size
     dq 0x1000
 %endif
 phdr.end:

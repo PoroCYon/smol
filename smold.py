@@ -13,10 +13,13 @@ from smol.shared import *
 from smol.parse  import *
 from smol.emit   import *
 from smol.cnl    import *
+from smol.emit_dlfixup import *
 
 def preproc_args(args):
-    if args.hash16 and args.crc32c: # shouldn't happen anymore
+    if args.hash16 and args.crc32c and not args.fuse_dlfixup_loader: # shouldn't happen anymore
         error("Cannot combine --hash16 and --crc32c!")
+    if args.fuse_dnload_loader and args.fuse_dlfixup_loader:
+        error("Cannot combine -fuse-dnload-loader and -fuse-dlfixup-loader!")
 
     if args.debug:
         args.cflags.append('-g')
@@ -55,6 +58,8 @@ def preproc_args(args):
 
     if args.hash16 and arch not in ('i386', 3):
         error("Cannot use --hash16 for arch `%s' (not i386)" % (arch))
+    if args.fuse_dlfixup_loader and arch != 'x86_64':
+        error("Cannot use -fuse-dlfixup-loader for arch '%s' (not x86_64)." % arch)
 
     return args, arch
 
@@ -110,7 +115,10 @@ def do_smol_run(args, arch):
 
         with (open(args.output,'w') if args.gen_rt_only
                                     else os.fdopen(tmp_asm_fd, mode='w')) as taf:
-            output(arch, symbols, args.nx, get_hash_id(args.hash16, args.crc32c), taf, args.det)
+            if args.fuse_dlfixup_loader:
+                output_dlfixup(arch, symbols, args.fuse_nx, taf, args.det)
+            else:
+                output(arch, symbols, args.fuse_nx, get_hash_id(args.hash16, args.crc32c), taf, args.det)
             if args.verbose:
                 eprintf("wrote symtab to %s" % tmp_asm_file)
 
@@ -122,9 +130,9 @@ def do_smol_run(args, arch):
             # link with LD into the final executable, w/ special linker script
             if args.debugout is not None: # do this first, so the linker map output will use the final output binary
                 ld_link_final(args.verbose, args.cc, arch, args.smolld, [objinput, tmp_elf_file],
-                              args.debugout, args.ldflags, True)
+                              args.debugout, args.ldflags, args.fuse_nx, True)
             ld_link_final(args.verbose, args.cc, arch, args.smolld, [objinput, tmp_elf_file],
-                          args.output, args.ldflags, False)
+                          args.output, args.ldflags, args.fuse_nx, False)
     finally:
         if not args.keeptmp:
             if objinputistemp: os.remove(objinput)
@@ -144,14 +152,16 @@ def main():
     hashgrp = parser.add_mutually_exclusive_group()
     hashgrp.add_argument('-s', '--hash16', default=False, action='store_true', \
         help="Use 16-bit (BSD2) hashes instead of 32-bit djb2 hashes. "+\
-             "Implies -fuse-dnload-loader. Only usable for 32-bit output.")
+             "Implies `-fuse-dnload-loader'. Only usable for 32-bit output. "+\
+             "Ignored if `-fuse-dlfixup-loader' is specified.")
     hashgrp.add_argument('-c', '--crc32c', default=False, action='store_true', \
         help="Use Intel's crc32 intrinsic for hashing. "+\
-             "Implies -fuse-dnload-loader. Conflicts with `--hash16'.")
+             "Implies `-fuse-dnload-loader'. Conflicts with `--hash16'. "+\
+             "Ignored if `-fuse-dlfixup-loader' is specified.")
 
     parser.add_argument('-n', '--nx', default=False, action='store_true', \
-        help="Use NX (i.e. don't use RWE pages). Costs the size of one phdr, "+\
-             "plus some extra bytes on i386.")
+        help="Deprecated, use `-fuse-nx' instead.",
+        dest="fuse_nx")
     parser.add_argument('-d', '--det', default=False, action='store_true', \
         help="Make the order of imports deterministic (default: just use " + \
              "whatever binutils throws at us)")
@@ -160,17 +170,18 @@ def main():
              "when `--debugout' is specified.")
 
     parser.add_argument('-fuse-interp', default=True, action='store_true', \
-        help="[Default ON] Include a program interpreter header (PT_INTERP). If not " +\
-             "enabled, ld.so has to be invoked manually by the end user. "+\
-             "Disable with `-fno-use-interp'.",
+        help="[Default ON] Include a program interpreter header (PT_INTERP). " +\
+             "If not enabled, ld.so has to be invoked manually by the end "+\
+             "user. Disable with `-fno-use-interp'.",
         dest="fuse_interp")
     parser.add_argument('-fno-use-interp', action='store_false', \
         dest="fuse_interp", help=argparse.SUPPRESS)
 
     parser.add_argument('-falign-stack', default=True, action='store_true', \
-        help="[Default ON] Align the stack before running user code (_start). If not " + \
-             "enabled, this has to be done manually. Costs 1 byte. Disable "+\
-             "with `-fno-align-stack'.", dest="falign_stack")
+        help="[Default ON] Align the stack before running user code (_start). " + \
+             "If not enabled, this has to be done manually. Costs 1 byte. "+\
+             "Disable with `-fno-align-stack'.",
+        dest="falign_stack")
     parser.add_argument('-fno-align-stack', action='store_false', \
         dest="falign_stack", help=argparse.SUPPRESS)
 
@@ -180,14 +191,16 @@ def main():
              "parsing libraries at runtime. Try enabling this if you're "+\
              "experiencing sudden breakage. However, many libraries don't use "+\
              "weak symbols, so this doesn't often pose a problem. Costs ~5 bytes."+\
-             "Disable with `-fno-skip-zero-value'.", dest="fskip_zero_value")
+             "Disable with `-fno-skip-zero-value'.",
+        dest="fskip_zero_value")
     parser.add_argument('-fno-skip-zero-value', default=None, action='store_false', \
         dest="fskip_zero_value", help=argparse.SUPPRESS)
 
     parser.add_argument('-fifunc-support', default=True, action='store_true', \
-        help="[Default ON] Support linking to IFUNCs. Probably needed on x86_64, but costs "+\
-             "~16 bytes. Ignored on platforms without IFUNC support. Disable "+\
-             "with `-fno-fifunc-support'.", dest="fifunc_support")
+        help="[Default ON] Support linking to IFUNCs. Probably needed on x86_64, "+\
+             "but costs ~16 bytes. Ignored on platforms without IFUNC support. "+\
+             "Disable with `-fno-fifunc-support'.",
+        dest="fifunc_support")
     parser.add_argument('-fno-ifunc-support', action='store_false', \
         dest="fifunc_support", help=argparse.SUPPRESS)
 
@@ -197,22 +210,20 @@ def main():
              "is slightly larger. If not enabled, a smaller custom loader is "+\
              "used which assumes glibc. `-fskip-zero-value' defaults to ON if "+\
              "this flag is supplied.")
+    parser.add_argument('-fuse-dlfixup-loader', default=False, action='store_true', \
+        help="Use an EXPERIMENTAL loader that uses the _dl_fixup function "+\
+             "placed into the GOT by ld.so, only works with glibc. Cannot be "+\
+             "used in combination with `-fuse-dnload-loader'. Only works on "+\
+             "x86_64.")
     parser.add_argument('-fuse-nx', default=False, action='store_true', \
         help="Don't use one big RWE segment, but use separate RW and RE ones."+\
              " Use this to keep strict kernels (PaX/grsec) happy. Costs at "+\
-             "least the size of one program header entry.")
-    parser.add_argument('-fuse-dt-debug', default=False, action='store_true', \
-        help="Use the DT_DEBUG Dyn header to access the link_map, which doesn't"+\
-             " depend on nonstandard/undocumented ELF and ld.so features. If "+\
-             "not enabled, the link_map is accessed using data leaked to the "+\
-             "entrypoint by ld.so, which assumes glibc. Costs ~10 bytes.")
+             "least the size of one program header entry.",
+        dest="fuse_nx")
     parser.add_argument('-fuse-dl-fini', default=False, action='store_true', \
         help="Pass _dl_fini to the user entrypoint, which should be done to "+\
              "properly comply with all standards, but is very often not "+\
              "needed at all. Costs 2 bytes.")
-    parser.add_argument('-fskip-entries', default=False, action='store_true', \
-        help="Skip the first two entries in the link map (resp. ld.so and "+\
-             "the vDSO). Speeds up symbol resolving, but costs ~5 bytes.")
     parser.add_argument('-fno-start-arg', default=False, action='store_true', \
         help="Don't pass a pointer to argc/argv/envp to the entrypoint using "+\
              "the standard calling convention. This means you need to read "+\
@@ -222,9 +233,21 @@ def main():
         help="Don't end the ELF Dyn table with a DT_NULL entry. This might "+\
              "cause ld.so to interpret the entire binary as the Dyn table, "+\
              "so only enable this if you're sure this won't break things!")
+
+    parser.add_argument('-fuse-dt-debug', default=False, action='store_true', \
+        help="Use the DT_DEBUG Dyn header to access the link_map, which doesn't"+\
+             " depend on nonstandard/undocumented ELF and ld.so features. If "+\
+             "not enabled, the link_map is accessed using data leaked to the "+\
+             "entrypoint by ld.so, which assumes glibc. Costs ~10 bytes. "+\
+             "Ignored if `-fuse-dlfixup-loader' is specified.")
+    parser.add_argument('-fskip-entries', default=False, action='store_true', \
+        help="Skip the first two entries in the link map (resp. ld.so and "+\
+             "the vDSO). Speeds up symbol resolving, but costs ~5 bytes. "+\
+             "Ignored if `-fuse-dlfixup-loader' is specified.")
     parser.add_argument('-fifunc-strict-cconv', default=False, action='store_true', \
         help="On i386, if -fifunc-support is specified, strictly follow the "+\
-             "calling convention rules. Probably not needed, but you never know.")
+             "calling convention rules. Probably not needed, but you never know. "+\
+             "Ignored if `-fuse-dlfixup-loader' is specified.")
 
     parser.add_argument('--nasm', default=os.getenv('NASM') or shutil.which('nasm'), \
         help="which nasm binary to use")
