@@ -16,33 +16,9 @@ SECTIONS {
   .dynamic : { *(.dynamic .rodata.dynamic) } :dyn :rodttxt
   .interp : { *(.interp .rodata.interp) } :interp /*:rodttxt*/
 
-  _smol_text_start = .;
-  _smol_text_off = _smol_bss_end - _smol_origin;
-  .text . : {
-     KEEP(*(.rodata.dynamic))
-     KEEP(*(.rodata.interp .rodata.neededlibs))
-     *(.rdata .rdata.* .rodata .rodata.*)
-     KEEP(*(.text.startup.smol))
-     KEEP(*(.text.startup._start))
-     *(.text .text.*)
-  } :rodttxt
-  _smol_text_end = .;
-  _smol_text_size = _smol_text_end - _smol_text_start;
-
-  _smol_textandheader_size = _smol_text_end - _smol_origin;
-
-  _smol_data_align_start = .;
-  . = . + 0x1000;
-  . = ALIGN(0x20); /* urgh */
-  _smol_data_align_end = .;
-  _smol_data_align_size = _smol_data_align_end - _smol_data_align_start;
-  _smol_data_extra_align_size = _smol_data_align_size - 0x1000;
-
-  _smol_data_vma_org = _smol_origin + 0x1000;
-
   _smol_data_start = .;
-  _smol_data_off = _smol_data_start - _smol_origin - _smol_data_align_size;
-  .data : AT(_smol_text_end + _smol_data_extra_align_size) {
+  _smol_data_off = _smol_data_start - _smol_origin /*- _smol_data_align_size*/;
+  .data : {
      KEEP(*(.data.smolgot .data.got.plt))
      *(.data .data.* .tdata .tdata.*)
   } :rwdt
@@ -51,7 +27,7 @@ SECTIONS {
   _smol_data_end = .;
   _smol_data_size = _smol_data_end - _smol_data_start;
 
-  _smol_total_filesize = . - _smol_origin - _smol_data_align_size;
+  _smol_dataandheader_size = _smol_data_end - _smol_origin;
 
   _smol_bss_start = .;
   _smol_bss_off = _smol_bss_start - _smol_origin;
@@ -62,7 +38,36 @@ SECTIONS {
   _smol_bss_size = _smol_bss_end - _smol_bss_start;
   _smol_dataandbss_size = _smol_bss_end - _smol_data_start;
 
-  _smol_total_memsize = . - _smol_origin - _smol_data_align_size;
+  _smol_dataandheaderandbss_size = _smol_bss_end - _smol_origin;
+
+  /* segments must be page-aligned, both in memory and in the file. however, we
+   * don't want to put any padding in our file because that'd take up far too
+   * much space, so what we do instead, is to map the file in two places: once
+   * at _smol_origin+0, RW, for .data etc., and once at _smol_origin+0x1000,
+   * for .textµ
+   */
+
+  _smol_text_align_start = .;
+  . = . + 0x1000 - _smol_bss_size;
+  _smol_text_align_end = .;
+  _smol_text_align_size = _smol_text_align_end - _smol_text_align_start;
+
+  _smol_text_vma_org = _smol_origin + 0x1000;
+
+  _smol_text_start = .;
+  _smol_text_off = _smol_data_end - _smol_origin;
+  .text . : AT(_smol_data_end) {
+     KEEP(*(.rodata.dynamic))
+     KEEP(*(.rodata.interp .rodata.neededlibs))
+     *(.rdata .rdata.* .rodata .rodata.*)
+     KEEP(*(.text.startup.smol))
+     KEEP(*(.text.startup._start))
+     *(.text .text.*)
+  } :rodttxt
+  _smol_text_end = .;
+  _smol_text_size = _smol_text_end - _smol_text_start;
+
+  _smol_total_filesize = _smol_text_end - _smol_origin - _smol_text_align_size;
 
   /* Stabs debugging sections.  */
   .stab          0 : { *(.stab) }
