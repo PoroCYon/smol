@@ -148,6 +148,12 @@ def do_smoldd_run(args):
     blob = args.input.read()
     elf  = hackyelf.parse(blob)
 
+    if elf.dyn is not None and any(d.tag == hackyelf.DT_JMPREL for d in elf.dyn):
+        # TODO
+        print("Binaries using -fuse-dlfixup-loader are not yet supported by "+\
+              "smoldd. For a temporary workaround, use strings(1) instead.")
+        return 1
+
     deflibs = get_def_libpaths(args.cc, elf.is32bit)
     needed = get_needed_libs(elf, blob)
     neededpaths = dict((l,list(find_libs(deflibs, l))[0]) for l in needed)
