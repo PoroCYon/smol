@@ -18,10 +18,20 @@ from smol.emit_dlfixup import *
 def preproc_args(args):
     if args.hash16 and args.crc32c and not args.fuse_dlfixup_loader: # shouldn't happen anymore
         error("Cannot combine --hash16 and --crc32c!")
-    if args.hash16 or args.crc32c:
-        args.fuse_dnload_loader = True
     if args.fuse_dnload_loader and args.fuse_dlfixup_loader:
         error("Cannot combine -fuse-dnload-loader and -fuse-dlfixup-loader!")
+
+#    if args.fuse_dlfixup_loader:
+#        if args.hash16: printf("Warning: specifying --hash16 (-s) while using the _dl_fixup-based loader does nothing.")
+#        if args.crc32c: printf("Warning: specifying --crc32c (-c) while using the _dl_fixup-based loader does nothing.")
+#        if args.fuse_dt_debug:
+#            printf("Warning: specifying -fuse-dt-debug while using the _dl_fixup-based loader does nothing.")
+#        if args.fskip_zero_value:
+#            printf("Warning: specifying -fskip-zero-value while using the _dl_fixup-based loader does nothing.")
+#        if args.fskip_entries:
+#            printf("Warning: specifying -fskip-entries while using the _dl_fixup-based loader does nothing.")
+#        if args.fifunc_support:
+#            printf("Warning: specifying -fifunc_support while using the _dl_fixup-based loader does nothing.")
 
     if args.debug:
         args.cflags.append('-g')
