@@ -397,7 +397,7 @@ def resolve_extern_symbols(needed: Dict[str, List[str]], # symname -> reloctyps
         #eprintf("libs",visable(libs.items()))
         preferred = build_preferred_lib_order(k, libs)
         #eprintf("preferred",preferred)
-        if not has_good_subordening(preferred, liborder):
+        if not has_good_subordening(preferred, liborder) and not args.fuse_dlfixup_loader:
             message = None
             if args.fuse_dnload_loader and not args.fskip_zero_value:
                 message = "W: unreconcilable library ordenings '%s' and '%s' "+\
@@ -406,7 +406,7 @@ def resolve_extern_symbols(needed: Dict[str, List[str]], # symname -> reloctyps
                 message = "W: unreconcilable library ordenings '%s' and '%s' "+\
                     "for symbol '%s', you might want to enable `-fskip-zero-value'."
             if message is not None:
-                eprintf(message % (', '.join(liborder.keys()), ', '.join(preferred.keys()), k))
+                eprintf(message % (', '.join(liborder.keys()), ', '.join(preferred), k))
 
         liborder = add_with_ordening(liborder, preferred, k, reloc)
         #eprintf("new order",visable(liborder),"\n")

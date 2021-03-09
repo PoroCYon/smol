@@ -4,7 +4,7 @@ from collections import OrderedDict
 
 from .shared import *
 
-def sort_imports(libraries, hashfn):
+def sort_imports(libraries):
     for k, v in libraries.items():
         libraries[k] = OrderedDict(sorted(v.items(), key=lambda sr: sr[0]))
 

@@ -59,7 +59,6 @@ _smol_start:
 .symloop:   ; rdi = RTLD_DEFAULT (0)
             ; rsi = name
             ; rdx = NULL
-       push 0
        push rdi
        push rsi
        push 0
