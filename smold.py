@@ -18,6 +18,8 @@ from smol.emit_dlfixup import *
 def preproc_args(args):
     if args.hash16 and args.crc32c and not args.fuse_dlfixup_loader: # shouldn't happen anymore
         error("Cannot combine --hash16 and --crc32c!")
+    if args.hash16 or args.crc32c:
+        args.fuse_dnload_loader = True
     if args.fuse_dnload_loader and args.fuse_dlfixup_loader:
         error("Cannot combine -fuse-dnload-loader and -fuse-dlfixup-loader!")
 
@@ -30,11 +32,9 @@ def preproc_args(args):
                 "what you want. (You need to explicitely add -lc for a "+\
                 "dependency on libc)")
 
-    if args.hash16 or args.crc32c:
-        args.fuse_dnload_loader = True
-
     args.fskip_zero_value = args.fskip_zero_value or args.fuse_dnload_loader
 
+    args.asflags.insert(0, "-DORDER_DT" if args.section_order == "dt" else "-DORDER_TD")
     if args.fskip_zero_value: args.asflags.insert(0, "-DSKIP_ZERO_VALUE")
     if args.fuse_nx: args.asflags.insert(0, "-DUSE_NX")
     if args.fskip_entries: args.asflags.insert(0, "-DSKIP_ENTRIES")
@@ -134,9 +134,9 @@ def do_smol_run(args, arch):
             # link with LD into the final executable, w/ special linker script
             if args.debugout is not None: # do this first, so the linker map output will use the final output binary
                 ld_link_final(args.verbose, args.cc, arch, args.smolld, [objinput, tmp_elf_file],
-                              args.debugout, args.ldflags, args.fuse_nx, True)
+                              args.debugout, args.ldflags, args.fuse_nx, args.section_order, True)
             ld_link_final(args.verbose, args.cc, arch, args.smolld, [objinput, tmp_elf_file],
-                          args.output, args.ldflags, args.fuse_nx, False)
+                          args.output, args.ldflags, args.fuse_nx, args.section_order, False)
     finally:
         if not args.keeptmp:
             if objinputistemp: os.remove(objinput)
@@ -271,6 +271,10 @@ def main():
     parser.add_argument('--smolld', default=os.getcwd()+"/ld",
         help="Directory containing the smol linker scripts")
 
+    parser.add_argument('--section-order', choices=["dt","td"], default="td",\
+        help="Specifies the order in which data and text sections will appear"+\
+             " in your binary. 'dt' means first data and then text, while 'td'"+\
+             " means the opposite.")
     parser.add_argument('--gen-rt-only', default=False, action='store_true', \
         help="Only generate the headers/runtime assembly source file, instead"+\
              " of doing a full link. (I.e. fall back to pre-release behavior.)")

@@ -58,6 +58,8 @@ phdr.load:
     dd _smol_total_memsize ; p_memsz
     dd (PHDR_R | PHDR_W | PHDR_X) ; p_flags
     dd 0x1000           ; p_align
+%else
+    ; TODO
 %endif
 phdr.end:
 

@@ -84,6 +84,8 @@ phdr.load:
     dq _smol_total_memsize ; p_memsz
     dq 0x1000           ; p_align
 %else
+%ifdef ORDER_DT
+; data and then text
 phdr.load:
     dd PT_LOAD
     dd PHDR_R | PHDR_W
@@ -100,6 +102,25 @@ phdr.load2:
     dq _smol_total_filesize;_smol_data_size
     dq _smol_total_filesize;_smol_dataandbss_size
     dq 0x1000
+%else
+; text and then data
+phdr.load:
+    dd PT_LOAD
+    dd PHDR_R | PHDR_X
+    dq 0
+    dq ehdr, 0
+    dq _smol_textandheader_size
+    dq _smol_textandheader_size
+    dq 0x1000 ; let's hope this works
+phdr.load2:
+    dd PT_LOAD
+    dd PHDR_R | PHDR_W
+    dq 0;_smol_data_off
+    dq _smol_data_vma_org,0 ;_smol_data_start, 0
+    dq _smol_total_filesize;_smol_data_size
+    dq _smol_total_filesize;_smol_dataandbss_size
+    dq 0x1000
+%endif
 %endif
 phdr.end:
 

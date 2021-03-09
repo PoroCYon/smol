@@ -6,6 +6,7 @@ extern _smol_text_start
 extern _smol_text_off
 extern _smol_text_end
 extern _smol_text_size
+extern _smol_textandheader_size
 extern _smol_dataandheader_size
 extern _smol_dataandheaderandbss_size
 extern _smol_data_start
@@ -18,5 +19,6 @@ extern _smol_bss_off
 extern _smol_bss_end
 extern _smol_bss_size
 extern _smol_total_memsize
+extern _smol_data_vma_org
 extern _smol_text_vma_org
 
