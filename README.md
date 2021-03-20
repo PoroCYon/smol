@@ -59,6 +59,9 @@ optional arguments:
                         throws at us)
   -g, --debug           Pass `-g' to the C compiler, assembler and linker. Only useful when
                         `--debugout' is specified.
+  -I DYNAMIC_LINKER, --dynamic-linker DYNAMIC_LINKER
+                        Set the name of the dynamic linker. The default dynamic linker is normally
+                        correct; don't use this unless you know what you are doing.
   -fuse-interp          [Default ON] Include a program interpreter header (PT_INTERP). If not
                         enabled, ld.so has to be invoked manually by the end user. Disable with
                         `-fno-use-interp'.

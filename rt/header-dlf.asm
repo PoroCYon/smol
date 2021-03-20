@@ -6,6 +6,10 @@
 
 %include "elf.inc"
 
+;%ifndef PT_INTERP_VAL
+;%define PT_INTERP_VAL "/lib64/ld-linux-x86-64.so.2"
+;%endif
+
 global _EHDR
 _EHDR:
 ehdr:
@@ -63,15 +67,19 @@ ehdr.end:
 %else
     dq dynamic - ehdr   ; p_offset
     dq dynamic;, 0       ; p_vaddr, p_paddr
+%ifndef PT_INTERP_VAL
 global _INTERP
 _INTERP:
 interp:
     db "/lib64/ld-linux-x86-64.so.2",0
 interp.end:
     dd 0
-    ;dq dynamic.end - dynamic ; p_filesz
-    ;dq dynamic.end - dynamic ; p_memsz
-    ;dq 0                ; p_align
+%else
+    dq 0
+    dq dynamic.end - dynamic ; p_filesz
+    dq dynamic.end - dynamic ; p_memsz
+    dq 0                ; p_align
+%endif
 %endif
 
 %ifndef USE_NX
@@ -124,12 +132,14 @@ phdr.load2:
 %endif
 phdr.end:
 
-;[section .interp]
-;global _INTERP
-;_INTERP:
-;interp:
-;    db "/lib64/ld-linux-x86-64.so.2",0
-;interp.end:
+%ifdef PT_INTERP_VAL
+[section .interp]
+global _INTERP
+_INTERP:
+interp:
+    db PT_INTERP_VAL,0
+interp.end:
+%endif
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

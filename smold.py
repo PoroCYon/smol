@@ -45,6 +45,8 @@ def preproc_args(args):
     args.fskip_zero_value = args.fskip_zero_value or args.fuse_dnload_loader
 
     args.asflags.insert(0, "-DORDER_DT" if args.section_order == "dt" else "-DORDER_TD")
+    if args.dynamic_linker is not None:
+        args.asflags.insert(0, "-DPT_INTERP_VAL=\"%s\""%args.dynamic_linker)
     if args.fskip_zero_value: args.asflags.insert(0, "-DSKIP_ZERO_VALUE")
     if args.fuse_nx: args.asflags.insert(0, "-DUSE_NX")
     if args.fskip_entries: args.asflags.insert(0, "-DSKIP_ENTRIES")
@@ -182,6 +184,10 @@ def main():
     parser.add_argument('-g', '--debug', default=False, action='store_true', \
         help="Pass `-g' to the C compiler, assembler and linker. Only useful "+\
              "when `--debugout' is specified.")
+
+    parser.add_argument('-I', '--dynamic-linker', default=None, type=str,
+        help="Set the name of the dynamic linker. The default dynamic linker "+\
+             "is normally correct; don't use this unless you know what you are doing.")
 
     parser.add_argument('-fuse-interp', default=True, action='store_true', \
         help="[Default ON] Include a program interpreter header (PT_INTERP). " +\

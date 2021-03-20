@@ -6,6 +6,10 @@
 
 %include "elf.inc"
 
+%ifndef PT_INTERP_VAL
+%define PT_INTERP_VAL "/lib/ld-linux.so.2"
+%endif
+
 global _EHDR
 _EHDR:
 ehdr:
@@ -68,7 +72,7 @@ phdr.end:
 global _INTERP
 _INTERP:
 interp:
-    db "/lib/ld-linux.so.2",0
+    db PT_INTERP_VAL,0
 interp.end:
 %endif
 
