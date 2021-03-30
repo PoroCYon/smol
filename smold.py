@@ -111,22 +111,11 @@ def do_smol_run(args, arch):
         syms = get_needed_syms(args.readelf, objinput)
         spaths = args.libdir + cc_paths['libraries']
         libraries = cc_paths['libraries']
-        libs = find_libs(spaths, args.library)
+        libs = find_libs(args.readelf, spaths, args.library)
         if args.verbose:
-            eprintf("libs = %s" % str(libs))
+            eprintf("libs = %s" % repr(libs))
 
         libs_symbol_map = build_symbol_map(args.readelf, libs)
-        #symbols = {}
-        #for symbol, reloc in syms:
-        #    if symbol not in libs_symbol_map:
-        #        error("could not find symbol: {}".format(symbol))
-        #    libs_for_symbol = libs_symbol_map[symbol]
-        #    if len(libs_for_symbol) > 1:
-        #        error("E: the symbol '%s' is provided by more than one library: %s"
-        #              % (symbol, str(libs_for_symbol)))
-        #    library = libs_for_symbol.pop()
-        #    symbols.setdefault(library, [])
-        #    symbols[library].append((symbol, reloc))
         symbols = resolve_extern_symbols(syms, libs_symbol_map, args)
 
         with (open(args.output,'w') if args.gen_rt_only

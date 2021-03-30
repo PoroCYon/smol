@@ -67,14 +67,6 @@ def build_reloc_typ_table(reo) -> Dict[str, Set[str]]: # (symname, reloctyps) di
             continue
 
         relocs.setdefault(symname, set()).add(reloctyp)
-        # don't do that here, only check for import/external symbols (in get_needed_syms)
-        #if symname in relocs:
-        #    rlc = relocs[symname]
-        #    if rlc != reloctyp:
-        #        error("E: symbol '%s' used with multiple relocation types! (%s <-> %s)"
-        #              % (symname, reloctyp, rlc))
-        #else:
-        #    relocs[symname] = reloctyp
 
     return relocs
 
@@ -219,33 +211,27 @@ def find_lib(spaths, wanted):
     error("E: couldn't find library '%s'." % wanted)
 
 
-def find_libs(spaths, wanted):
-    return [find_lib(spaths, l) for l in wanted]
+def get_soname(readelf_bin: str, lib: str) -> str:
+    outdyn = subprocess.check_output([readelf_bin, '-d', '-W',inpfile],
+                                     stderr=subprocess.DEVNULL)
+
+    soname = os.path.split(inpfile)[1]
+    for entry in outdyn.decode('utf-8').splitlines():
+        if 'SONAME' in entry:
+            # 0xTAGHEX (TAGNAME)    Library soname: [libfoo-123.so.1.2.3]
+            soname = entry.strip().split()[-1]
+            soname = soname[1:-1]
+            break
+
+    return soname
 
 
-def list_symbols(readelf_bin, lib):
-    out = subprocess.check_output([readelf_bin, '-sW', lib], stderr=subprocess.DEVNULL)
-
-    lines = set(out.decode('utf-8').split('\n'))
-    symbols = []
-
-    for line in lines:
-        fields = re.split(r"\s+", line)
-        if len(fields) != 9:
-            continue
-
-        vis, ndx, symbol = fields[6:9]
-        if vis != "DEFAULT" or ndx == "UND":
-            continue
-
-        # strip away GLIBC versions
-        symbol = re.sub(r"@@.*$", "", symbol)
-        symbols.append(symbol)
-
-    return symbols
+def find_libs(readelf_bin: str, spaths, wanted) -> Dict[str,str]:
+    # return dict([(l, get_soname(readelf_bin, l)) for l in ...])
+    return dict([(l, l) for l in (find_lib(spaths, l) for l in wanted)])
 
 
-def build_symbol_map(readelf_bin, libraries) -> Dict[str, Dict[str, ExportSym]]:
+def build_symbol_map(readelf_bin, libraries: Dict[str,str]) -> Dict[str, Dict[str, ExportSym]]:
     # create dictionary that maps symbols to libraries that provide them, and their metadata
     symbol_map = {} # symname -> (lib, exportsym)
 
@@ -253,18 +239,27 @@ def build_symbol_map(readelf_bin, libraries) -> Dict[str, Dict[str, ExportSym]]:
     if len(libraries) == 0:
         return symbol_map
 
-    out = subprocess.check_output([readelf_bin, '-sW', *libraries], stderr=subprocess.DEVNULL)
+    # TODO: maybe get the SONAME from this readelf invocation as well? not sure
+    #       what the guarantees are w/ the ordering of the output stuff...
+    # NOTE: seems to work out just fine, if this breaks, please fall back to
+    #       the "read soname in find_libs()" behavior (which is currently
+    #       commented out, both here and in that function above)
+    out = subprocess.check_output([readelf_bin, '-dsW', *libraries.keys()], stderr=subprocess.DEVNULL)
 
     lines = out.decode('utf-8').splitlines()
-    curfile = libraries[0]
-    soname  = curfile.split("/")[-1]
+    firstlib = list(libraries.items())
+    curfile = firstlib[0]
+    #soname  = firstlib[1]
     for line in lines:
-        fields = line.split()
+        fields = line.strip().split()
         if len(fields) < 2:
             continue
+
         if fields[0] == "File:":
             curfile = fields[1]
-            soname  = curfile.split("/")[-1]
+            #soname  = libraries[curfile]
+        if "SONAME" in line:
+            soname = fields[-1][1:-1]
 
         if len(fields) != 8:
             continue
@@ -324,6 +319,7 @@ def has_good_subordening(needles, haystack):
         prevind = curind
     return True
 
+
 def add_with_ordening(haystack: List[Tuple[str, Dict[str, str]]], # [(libname, (symname -> reloctyp))]
                       needles: List[str], # [lib]
                       sym: str, reloc: str, last=False) \
@@ -358,7 +354,8 @@ def add_with_ordening(haystack: List[Tuple[str, Dict[str, str]]], # [(libname, (
 
     return haystack
 
-def visable(ll):
+
+def visable(ll): # "visualisable" (for printf debugging)
     rr = []
     for k, v in ll:
         if isinstance(v, ExportSym):
