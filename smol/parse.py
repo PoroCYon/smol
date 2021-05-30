@@ -249,6 +249,10 @@ def build_symbol_map(readelf_bin, libraries) -> Dict[str, Dict[str, ExportSym]]:
     # create dictionary that maps symbols to libraries that provide them, and their metadata
     symbol_map = {} # symname -> (lib, exportsym)
 
+    # if this check is not performed, readelf will exit with a nonzero exitcode
+    if len(libraries) == 0:
+        return symbol_map
+
     out = subprocess.check_output([readelf_bin, '-sW', *libraries], stderr=subprocess.DEVNULL)
 
     lines = out.decode('utf-8').splitlines()

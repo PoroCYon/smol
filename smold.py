@@ -25,6 +25,10 @@ def preproc_args(args):
         args.cflags.append('-g')
         args.ldflags.append('-g')
         args.asflags.append('-g')
+    if len(args.library) == 0:
+        eprintf("W: no library dependencies specified. This is probably not "+\
+                "what you want. (You need to explicitely add -lc for a "+\
+                "dependency on libc)")
 
     if args.hash16 or args.crc32c:
         args.fuse_dnload_loader = True
