@@ -40,10 +40,12 @@ def find_libs(deflibs, libname):
             yield f
 
 def build_hashtab(readelf_bin, lib, hashid):
-    symbols = list_symbols(readelf_bin, lib)
+    #symbols = list_symbols(readelf_bin, lib)
+    symbols = build_symbol_map(readelf_bin, dict({lib:lib}))
+    #print(repr(symbols))
 
     hashfn = get_hash_fn(hashid)
-    return { hashfn(symbol):symbol for symbol in symbols }
+    return { hashfn(symbol[0]):symbol[0] for symbol in symbols.items() }
 
 def addr2off(elf, addr):
     for x in elf.phdrs:
@@ -136,6 +138,8 @@ def get_hashtbl(elf, blob, args):
             #    else:
             #        assert False, "AAAAA rest is %s" % repr(blob[htoff:])
         val, ___ = (readshort if hashsz == 2 else readint)(blob, htoff)
+        if (val & 0xFF) == 0:
+            break
         if (val & 0xFFFF) == 0:
             break
         tbl.append(val)
@@ -206,6 +210,9 @@ def main():
              "Only usable for 32-bit output.")
     hashgrp.add_argument('-c', '--crc32c', default=False, action='store_true', \
         help="Use Intel's crc32 intrinsic for hashing. Conflicts with `--hash16'.")
+    hashgrp.add_argument('-B', '--break-on-zerobyte', default=False, action='store_true', \
+        help="Specify that the hash table ends on an entry with a LSByte of 0"+\
+             " (by default, smoldd checks the lowest 2 bytes).")
     args = parser.parse_args()
 
     return do_smoldd_run(args)
