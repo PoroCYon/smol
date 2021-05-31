@@ -138,9 +138,7 @@ def get_hashtbl(elf, blob, args):
             #    else:
             #        assert False, "AAAAA rest is %s" % repr(blob[htoff:])
         val, ___ = (readshort if hashsz == 2 else readint)(blob, htoff)
-        if (val & 0xFF) == 0:
-            break
-        if (val & 0xFFFF) == 0:
+        if (val & (0xFF if args.break_on_zerobyte else 0xFFFF)) == 0:
             break
         tbl.append(val)
         #eprintf("sym %08x" % val)
