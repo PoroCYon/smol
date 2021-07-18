@@ -8,7 +8,7 @@ import sys
 from typing import NamedTuple, List, Dict, OrderedDict, Tuple, Set
 
 from .shared import *
-
+from .hackyelf import *
 
 implicit_syms = { '_GLOBAL_OFFSET_TABLE_' }
 unsupported_symtyp = { 'NOTYPE', 'TLS', 'OBJECT' } # TODO: support OBJECT, and maybe TLS too
@@ -422,4 +422,46 @@ def resolve_extern_symbols(needed: Dict[str, List[str]], # symname -> reloctyps
 
     #eprintf("ordered", visable(liborder))
     return OrderedDict(liborder)
+
+def check_start_sym_ok(objpath):
+    # we could use readelf here, but problem is, it doesn't want to give the
+    # offset of a symbol into the file, which is needed to check whether _start
+    # is actually in .text._start or .text.startup._start .
+    # so, time to use hackyelf:
+
+    elf = None
+    with open(objpath, 'rb') as f:
+        elf = parse(f.read())
+
+    startsym = None
+    for sym in elf.symtab:
+        if sym.name == "_start":
+            startsym = sym
+            break
+
+    if startsym is None:
+        eprintf("WARNING: no '_start' function found.")
+        return False
+
+    startsh, startshndx = None, None
+    for i in range(len(elf.shdrs)):
+        sh = elf.shdrs[i]
+
+        if sh.name in (".text._start", ".text.startup._start"):
+            if startsh is not None:
+                eprintf("WARNING: more than one '.text._start' or '.text.startup._start' section found.")
+                return False
+
+            startsh = sh
+            startshndx = i
+
+    if startsh is None:
+        eprintf("WARNING: no '.text._start' or '.text.startup._start' section found.")
+        return False
+
+    if startsym.shndx != startshndx:
+        eprintf("WARNING: '_start' symbol not in '.text._start' or '.text.startup._start'.")
+        return False
+
+    return True
 

@@ -106,6 +106,12 @@ def do_smol_run(args, arch):
         else:
             objinput = args.input[0]
 
+        if not check_start_sym_ok(objinput):
+            eprintf("WARNING: input object file not formatted properly or the"+\
+                    " entrypoint could not be found. Your"+\
+                    " executable will not work, unless you REALLY know what "+\
+                    "you're doing. See the smol README for more details.")
+
         # generate smol hashtab
         cc_paths = get_cc_paths(args.cc)
         syms = get_needed_syms(args.readelf, objinput)

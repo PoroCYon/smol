@@ -248,7 +248,8 @@ def parse_dyn64(data: bytes, dynp: Phdr) -> Dyn:
 
 def parse_shdr64(data: bytes, shoff: int, shentsz: int, shnum: int,
                  shstrndx: int) -> Sequence[Shdr]:
-    if shnum*shentsz+shoff >= len(data) or shentsz==0 or shnum==0 or shoff==0:
+
+    if shnum*shentsz+shoff > len(data) or shentsz==0 or shnum==0 or shoff==0:
         return []
 
     ss = []
@@ -277,7 +278,7 @@ def parse_sym64(data: bytes, sym: Shdr, strt: Shdr) -> Sequence[Sym]:
 
         sn = readstr(data, strt.offset + noff) \
             if noff < strt.size else None
-        s = Sym(sn, val, sz, (info & 15), (info >> 4), other, shndx)
+        s = Sym(sn, value, sz, (info & 15), (info >> 4), other, shndx)
         ss.append(s)
     return sorted(ss, key=lambda x:x.value)
 
@@ -295,7 +296,7 @@ def parse_64(data: bytes) -> ELF:
     shnum   = unpack('<H', data[60:60+2])[0]
     shstrndx= unpack('<H', data[62:62+2])[0]
 
-    phdrs = parse_phdr64(data, phoff, phentsz, phnum)
+    phdrs = [] if phentsz == 0 else parse_phdr64(data, phoff, phentsz, phnum)
     dyn   = None
 
     for p in phdrs:
@@ -303,7 +304,7 @@ def parse_64(data: bytes) -> ELF:
             dyn = parse_dyn64(data, p)
             break
 
-    shdrs = parse_shdr64(data, shoff, shentsz, shnum, shstrndx)
+    shdrs = [] if shentsz == 0 else parse_shdr64(data, shoff, shentsz, shnum, shstrndx)
 
     symtabsh = [s for s in shdrs if s.type == SHT_SYMTAB and s.name == ".symtab"]
     strtabsh = [s for s in shdrs if s.type == SHT_STRTAB and s.name == ".strtab"]
