@@ -26,7 +26,7 @@ SECTIONS {
   _smol_text_off = _smol_data_end - _smol_origin;
   .text : {
      KEEP(*(.text.startup.smol))
-     KEEP(*(.text.startup._start))
+     KEEP(*(.text.startup._start .text._start))
      *(.text .text.*)
      /*KEEP(*(.rodata.dynamic))
      KEEP(*(.rodata.interp .rodata.neededlibs))*/

@@ -70,7 +70,7 @@ SECTIONS {
      KEEP(*(.rodata.interp .rodata.neededlibs))*/
      *(.rdata .rdata.* .rodata .rodata.*)
      KEEP(*(.text.startup.smol))
-     KEEP(*(.text.startup._start))
+     KEEP(*(.text.startup._start .text._start))
      *(.text .text.*)
   } :rodttxt
   _smol_text_end = .;
