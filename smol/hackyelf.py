@@ -20,19 +20,42 @@ PT_LOAD    = 1
 PT_DYNAMIC = 2
 PT_INTERP  = 3
 
-DT_NULL   = 0
-DT_NEEDED = 1
-DT_PLTGOT = 3
-DT_STRTAB = 5
-DT_SYMTAB = 6
-DT_DEBUG  = 21
-DT_JMPREL = 23
+DT_NULL    =  0
+DT_NEEDED  =  1
+DT_PLTGOT  =  3
+DT_STRTAB  =  5
+DT_SYMTAB  =  6
+DT_RELA    =  7
+DT_RELASZ  =  8
+DT_RELAENT =  9
+DT_STRSZ   = 10
+DT_SYMENT  = 11
+DT_SONAME  = 14
+DT_REL     = 17
+DT_RELSZ   = 18
+DT_RELENT  = 19
+DT_PLTREL  = 20
+DT_DEBUG   = 21
+DT_TEXTREL = 22
+DT_JMPREL  = 23
+DT_BIND_NOW= 24
 
 SHT_NULL     =  0
 SHT_PROGBITS =  1
 SHT_SYMTAB   =  2
 SHT_STRTAB   =  3
+SHT_RELA     =  4
+SHT_DYNAMIC  =  6
+SHT_NOBITS   =  8
+SHT_REL      =  9
 SHT_DYNSYM   = 11
+
+SHF_WRITE     = 1<<0
+SHF_ALLOC     = 1<<1
+SHF_EXECINSTR = 1<<2
+SHF_MERGE     = 1<<4
+SHF_STRINGS   = 1<<5
+SHF_INFO_LINK = 1<<6
 
 STB_LOCAL  = 0
 STB_GLOBAL = 1
@@ -87,6 +110,17 @@ class Sym(NamedTuple):
     visibility: int
     shndx: int
 
+class Rel(NamedTuple):
+    offset: int
+    symbol: Sym
+    type: int
+class Rela(NamedTuple):
+    offset: int
+    symbol: Sym
+    type: int
+    addend: int
+Reloc = Union[Rel, Rela]
+
 class ELF(NamedTuple):
     data  : bytes
     ident : bytes
@@ -98,6 +132,7 @@ class ELF(NamedTuple):
     shdrs : Sequence[Shdr]
     symtab: Sequence[Sym]
     dynsym: Sequence[Sym]
+    relocs: Sequence[Reloc]
     is32bit: bool
 
 def readstr(data: bytes, off: int) -> str:
@@ -132,6 +167,19 @@ def parse_dyn32(data: bytes, dynp: Phdr) -> Dyn:
         off = off + 2*4
 
     return ds
+
+def parse_reloc32(data: bytes, reloff: int, nrel: int, entsz: int, syms: Sequence[Sym], rela: bool) -> Reloc:
+    rr=[]
+
+    for off in range(reloff, reloff+entsz*nrel, entsz):
+        off, inf, add = unpack('<IIi', data[off:(off+12)]) if rela \
+            else (*unpack('<Ii', data[off:(off+8)]),0)
+
+        sym = syms[inf >> 8]
+        type = inf & 0xff
+        rr.append(Rela(off, sym, type, add) if rela else Rel(off, sym, type))
+
+    return rr
 
 def parse_shdr32(data: bytes, shoff: int, shentsz: int, shnum: int,
                  shstrndx: int) -> Sequence[Shdr]:
@@ -171,7 +219,7 @@ def parse_sym32(data: bytes, sym: Shdr, strt: Shdr) -> Sequence[Sym]:
             if noff < strt.size else None
         s = Sym(sn, val, sz, (info & 15), (info >> 4), other, shndx)
         ss.append(s)
-    return sorted(ss, key=lambda x:x.value)
+    return ss#sorted(ss, key=lambda x:x.value)
 
 def parse_32(data: bytes) -> ELF:
     ident  = data[:16]
@@ -187,7 +235,7 @@ def parse_32(data: bytes) -> ELF:
     shnum   = unpack('<H', data[48:48+2])[0]
     shstrndx= unpack('<H', data[50:50+2])[0]
 
-    phdrs = parse_phdr32(data, phoff, phentsz, phnum)
+    phdrs = [] if phentsz == 0 else parse_phdr32(data, phoff, phentsz, phnum)
     dyn   = None
 
     for p in phdrs:
@@ -202,6 +250,8 @@ def parse_32(data: bytes) -> ELF:
     strtabsh = [s for s in shdrs if s.type == SHT_STRTAB and s.name == ".strtab"]
     dynsymsh = [s for s in shdrs if s.type == SHT_SYMTAB and s.name == ".dynsym"]
     dynstrsh = [s for s in shdrs if s.type == SHT_STRTAB and s.name == ".dynstr"]
+    relash   = [s for s in shdrs if s.type == SHT_RELA]
+    relsh    = [s for s in shdrs if s.type == SHT_REL]
 
     #print("symtab",symtabsh)
     #print("strtab",strtabsh)
@@ -219,8 +269,19 @@ def parse_32(data: bytes) -> ELF:
         dynsym = parse_sym32(data, symtabsh[0], strtabsh[0]) \
             if len(shdrs) > 0 else []
 
+    relocs = []
+
+    # TODO: use sh.link to use the correct symbol table
+    for sh in relash:
+        relocs += parse_reloc32(data, sh.offset, sh.size//sh.entsize,
+                                sh.entsize, symtab, True)
+    for sh in relsh:
+        relocs += parse_reloc32(data, sh.offset, sh.size//sh.entsize,
+                                sh.entsize, symtab, False)
+    # TODO: relocs from DT_RELA, DT_REL
+
     return ELF(data, ident, eclass, mach, entry, phdrs, dyn, shdrs,
-               symtab, dynsym, True)
+               symtab, dynsym, relocs, True)
 
 def parse_phdr64(data: bytes, phoff:int, phentsz:int, phnum:int) -> Sequence[Phdr]:
     ps = []
@@ -245,6 +306,19 @@ def parse_dyn64(data: bytes, dynp: Phdr) -> Dyn:
         off = off + 2*8
 
     return ds
+
+def parse_reloc64(data: bytes, reloff: int, nrel: int, entsz: int, syms: Sequence[Sym], rela: bool) -> Reloc:
+    rr=[]
+
+    for off in range(reloff, reloff+entsz*nrel, entsz):
+        off, inf, add = unpack('<QQq', data[off:(off+24)]) if rela \
+            else (*unpack('<Qq', data[off:(off+16)]),0)
+
+        sym = syms[inf >> 32]
+        type = inf & 0xffffffff
+        rr.append(Rela(off, sym, type, add) if rela else Rel(off, sym, type))
+
+    return rr
 
 def parse_shdr64(data: bytes, shoff: int, shentsz: int, shnum: int,
                  shstrndx: int) -> Sequence[Shdr]:
@@ -280,7 +354,7 @@ def parse_sym64(data: bytes, sym: Shdr, strt: Shdr) -> Sequence[Sym]:
             if noff < strt.size else None
         s = Sym(sn, value, sz, (info & 15), (info >> 4), other, shndx)
         ss.append(s)
-    return sorted(ss, key=lambda x:x.value)
+    return ss#sorted(ss, key=lambda x:x.value)
 
 def parse_64(data: bytes) -> ELF:
     ident  = data[:16]
@@ -310,6 +384,8 @@ def parse_64(data: bytes) -> ELF:
     strtabsh = [s for s in shdrs if s.type == SHT_STRTAB and s.name == ".strtab"]
     dynsymsh = [s for s in shdrs if s.type == SHT_SYMTAB and s.name == ".dynsym"]
     dynstrsh = [s for s in shdrs if s.type == SHT_STRTAB and s.name == ".dynstr"]
+    relash   = [s for s in shdrs if s.type == SHT_RELA]
+    relsh    = [s for s in shdrs if s.type == SHT_REL]
 
     assert len(symtabsh) < 2
     assert len(strtabsh) < 2
@@ -324,8 +400,19 @@ def parse_64(data: bytes) -> ELF:
         dynsym = parse_sym64(data, symtabsh[0], strtabsh[0]) \
             if len(shdrs) > 0 else []
 
+    relocs = []
+
+    # TODO: use sh.link to use the correct symbol table
+    for sh in relash:
+        relocs += parse_reloc32(data, sh.offset, sh.size//sh.entsize,
+                                sh.entsize, symtab, True)
+    for sh in relsh:
+        relocs += parse_reloc32(data, sh.offset, sh.size//sh.entsize,
+                                sh.entsize, symtab, False)
+    # TODO: relocs from DT_RELA, DT_REL
+
     return ELF(data, ident, eclass, mach, entry, phdrs, dyn, shdrs,
-               symtab, dynsym, False)
+               symtab, dynsym, relocs, False)
 
 def parse(data: bytes) -> ELF:
     assert data[:4] == b'\x7FELF', "Not a valid ELF file" # good enough
