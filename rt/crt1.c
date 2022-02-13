@@ -25,17 +25,18 @@ int _start(void* stack
 
 // avoid problems when -fno-plt is enabled
 #ifdef __x86_64__
-    asm volatile("xor  %%ecx, %%ecx\n"
+    asm volatile("mov  $main, %%rdi\n"
+                 "xor  %%ecx, %%ecx\n"
                  "push %%rcx\n"
                  "push %%rcx\n"
                  "pop  %%r8\n"
                  "pop  %%r9\n"
                  "jmp *__libc_start_main@GOTPCREL(%%rip)\n"
             :
-            :"S"(argc), "D" (main), "d" (argv)
+            :"S"(argc), /*"D" (main),*/ "d" (argv)
             :);
 #else
-    __libc_start_main(main, argc, argv, NULL, NULL,
+    __libc_start_main(&main, argc, argv, NULL, NULL,
 #ifdef USE_DL_FINI
             dl_fini
 #else
