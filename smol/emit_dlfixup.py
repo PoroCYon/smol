@@ -64,7 +64,7 @@ dynamic.end:
 
     # now do the actual symbol names
 
-    outf.write('_symbols.libc._dl_sym: db "_dl_sym",0\n') # this is a special one
+    outf.write('_symbols.libc._dl_sym: db "dlsym",0\n') # this is a special one
     outf.write('_symbols:\n')
     for library, symrels in libraries.items():
         outf.write('    _symbols.{}:\n'.format(shorts[library]))

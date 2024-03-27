@@ -186,7 +186,7 @@ global _dynstr
 _dynstr:
 ;    db 0
     _symbols.libc: db "libc.so.6",0
-    _symbols.libc.puts: db "_dl_sym",0
+    _symbols.libc.puts: db "dlsym",0
 
 global _rela_plt
 _rela_plt:
