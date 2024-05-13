@@ -36,7 +36,11 @@ else
 CFLAGS += -march=nocona
 endif
 
+#ifeq ($(BITS),32)
+#LIBS = -lSDL2-2.0 -lX11 -lm -lc #-lGL
+#else
 LIBS = $(filter-out -pthread,$(shell pkg-config --libs sdl2)) -lX11 -lm -lc #-lGL
+#endif
 
 PWD ?= .
 

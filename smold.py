@@ -113,11 +113,11 @@ def do_smol_run(args, arch):
                     "you're doing. See the smol README for more details.")
 
         # generate smol hashtab
-        cc_paths = get_cc_paths(args.cc)
+        cc_paths = get_cc_paths(args.cc, arch)
         syms = get_needed_syms(args.readelf, objinput)
         spaths = args.libdir + cc_paths['libraries']
         libraries = cc_paths['libraries']
-        libs = find_libs(args.readelf, spaths, args.library)
+        libs = find_libs(args.readelf, spaths, args.library, arch)
         if args.verbose:
             eprintf("libs = %s" % repr(libs))
 

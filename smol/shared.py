@@ -9,6 +9,12 @@ archmagic = {
     'x86_64': 62, 62: 'x86_64',
 }
 
+ARCH2BITS = {
+    'i386': 32, 'x86_64': 64,
+    # arm: 32
+}
+
+
 HASH_DJB2 = 0
 HASH_BSD2 = 1
 HASH_CRC32C=2

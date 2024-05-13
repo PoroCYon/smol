@@ -1,4 +1,5 @@
 
+import collections
 import glob
 import os.path
 import re
@@ -153,16 +154,25 @@ def format_cc_path_line(entry):
         for p in path.split(':') if os.path.isdir(p))[::-1])
 
 
-def get_cc_paths(cc_bin):
+def get_cc_paths(cc_bin, arch):
+    bits = []
+    if arch == 'i386': bits.append("-m32")
+    elif arch == 'x86_64': bits.append("-m64")
+
+    output = None
     bak = os.environ.copy()
     os.environ['LANG'] = "C" # DON'T output localized search dirs!
-    output = subprocess.check_output([cc_bin, '-print-search-dirs'],
-                                     stderr=subprocess.DEVNULL)
-    os.environ = bak
+    try:
+        output = subprocess.check_output([cc_bin, *bits, '-print-search-dirs'],
+                                         stderr=subprocess.DEVNULL)
+    finally:
+        os.environ = bak
 
-    outputpairs = list(map(format_cc_path_line,
-                           output.decode('utf-8').splitlines()))
-    paths = {}
+    lines = output.decode('utf-8').splitlines()
+    #print("lines", lines)
+    outputpairs = list(map(format_cc_path_line, lines))
+    #print("pairs", outputpairs)
+    paths = OrderedDict()
 
     for category, path in outputpairs: paths[category] = path
 
@@ -173,10 +183,43 @@ def get_cc_paths(cc_bin):
         paths['programs' ] = outputpairs[1][1]
         paths['libraries'] = outputpairs[2][1]
 
+    #print("searchpaths", paths['libraries'])
     return paths
 
 
 def get_cc_version(cc_bin):
+    # Backup the current environment and set LANG to C to avoid localized outputs
+    bak = os.environ.copy()
+    os.environ['LANG'] = "C"
+
+    try:
+        # Run the compiler with --version and capture the output
+        output = subprocess.check_output([cc_bin, '--version'], stderr=subprocess.DEVNULL)
+        # Decode the output from bytes to string and split into lines
+        lines = output.decode('utf-8').splitlines()
+
+        # Check if the output corresponds to GCC
+        if "Free Software Foundation" in lines[1]:
+            # Use regex to find the version number in the output lines
+            match = re.search(r'(\d+)\.(\d+)\.(\d+)', lines[0])
+            if match:
+                # If a version number is found, return it as a tuple of integers
+                return ("gcc", tuple(map(int, match.groups())))
+            else:
+                # If no version number is found, return a generic version (0, 0, 0)
+                return ("gcc", (0, 0, 0))
+        else:
+            # Assume Clang if not GCC, and attempt to extract version similarly
+            match = re.search(r'(\d+)\.(\d+)\.(\d+)', lines[0])
+            if match:
+                return ("clang", tuple(map(int, match.groups())))
+            else:
+                return ("clang", (0, 0, 0))
+    finally:
+        # Restore the original environment
+        os.environ = bak
+
+
     bak = os.environ.copy()
     os.environ['LANG'] = "C" # DON'T output localized search dirs!
     output = subprocess.check_output([cc_bin, '--version'],
@@ -192,18 +235,39 @@ def get_cc_version(cc_bin):
         return ("clang", tuple(map(int, verstr.split('.'))))
 
 
-def is_valid_elf(f): # Good Enough(tm)
+def is_valid_elf(f, arch):
     with open(f, 'rb') as ff:
-        return ff.read(4) == b'\x7FELF'
+        eimag = ff.read(4)  # ei_mag0..3
+        if eimag != b'\x7fELF':
+            return False
+
+        eiclass = ff.read(1)[0]  # 32/64-bit
+        eidata = ff.read(1)[0]  # little/big endian
+        _ = ff.read(16-6)  # rest of e_ident
+        _ = ff.read(2)  # e_type
+        mach = struct.unpack('<H', ff.read(2))[0]  # e_machine
+
+        #print("lib", f, "eimag", eimag, "eidata", eidata, "eiclass", eiclass, "mach", mach)
+        if eidata != 1:  # must be little-endian (for now, sorry)
+            return False
+
+        nbits = eiclass << 5  # cheating a bit to turn 1 into 32 and 2 into 64
+        if nbits != ARCH2BITS[arch]:  # wrong bitness
+            return False
+        if mach != archmagic[arch]:  # wrong arch
+            return False
+
+    return True
 
 
-def find_lib(spaths, wanted):
+def find_lib(spaths, wanted, arch):
     for p in spaths:
+        #print("looking in", p)
         for f in glob.glob(glob.escape('%s/lib%s' % (p, wanted)) + '.so*'):
-            if os.path.isfile(f) and is_valid_elf(f):
+            if os.path.isfile(f) and is_valid_elf(f, arch):
                 return f
         for f in glob.glob(glob.escape('%s/%s'    % (p, wanted)) + '.so*'):
-            if os.path.isfile(f) and is_valid_elf(f):
+            if os.path.isfile(f) and is_valid_elf(f, arch):
                 return f
         #for f in glob.glob(glob.escape(p) + '/lib' + wanted + '.a' ): return f
         #for f in glob.glob(glob.escape(p) + '/'    + wanted + '.a' ): return f
@@ -226,9 +290,9 @@ def get_soname(readelf_bin: str, lib: str) -> str:
     return soname
 
 
-def find_libs(readelf_bin: str, spaths, wanted) -> Dict[str,str]:
+def find_libs(readelf_bin: str, spaths, wanted, arch) -> Dict[str,str]:
     # return dict([(l, get_soname(readelf_bin, l)) for l in ...])
-    return dict([(l, l) for l in (find_lib(spaths, l) for l in wanted)])
+    return dict([(l, l) for l in (find_lib(spaths, l, arch) for l in wanted)])
 
 
 def build_symbol_map(readelf_bin, libraries: Dict[str,str]) -> Dict[str, Dict[str, ExportSym]]:
