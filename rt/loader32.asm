@@ -45,11 +45,7 @@ _smol_start:
 ;   mov eax, [eax + LM_NEXT_OFFSET] ; skip the vdso
 %endif
 
-%ifdef USE_JMP_BYTES
-   push _symbols+1
-%else
    push _symbols
-%endif
 
 %ifdef HANG_ON_STARTUP
 .loopme: jmp short .loopme
@@ -60,6 +56,9 @@ _smol_start:
     pop edi
 
     .next_hash:
+%ifdef USE_JMP_BYTES
+        inc edi ; skip 0xE9 (jmp) offset
+%endif
         mov ecx, [edi]
             ; assume it's nonzero
        push ebp
@@ -202,9 +201,6 @@ _smol_start:
            xchg ecx, eax
 %endif
           stosd
-%ifdef USE_JMP_BYTES
-            inc edi ; skip 0xE9 (jmp) offset
-%endif
             cmp HASH_END_TYP [edi], 0
             jne short .next_hash
 
@@ -229,6 +225,9 @@ repne scasd
             ; ebp: link_map* root
            push ecx
     .next_hash:
+%ifdef USE_JMP_BYTES
+            inc edi
+%endif
             pop ecx
             mov ecx, [edi]
 
@@ -316,9 +315,6 @@ repne scasd
                xchg ecx, eax
 %endif
               stosd
-%ifdef USE_JMP_BYTES
-                inc edi
-%endif
                 cmp HASH_END_TYP [edi], 0
                 jne short .next_hash
 

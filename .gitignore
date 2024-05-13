@@ -4,3 +4,5 @@ __pycache__
 
 smol-20*-*-*/
 smol*.tar.xz
+flag-*
+debug*/*

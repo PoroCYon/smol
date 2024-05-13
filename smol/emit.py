@@ -111,7 +111,7 @@ dynamic.end:
                 sys.exit(1)
 
             if nx:
-                outf.write("\t\t_symbols.{lib}.{name}: dd 0x{hash:x}"\
+                outf.write("\t\t_symbols.{lib}.{name}: dd 0x{hash:x}\n"\
                     .format(lib=shorts[library],name=sym,hash=hashfn(sym)).lstrip('\n'))
             else:
                 outf.write(("""\
