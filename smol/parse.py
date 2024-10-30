@@ -16,6 +16,7 @@ unsupported_symtyp = { 'NOTYPE', 'TLS', 'OBJECT' } # TODO: support OBJECT, and m
 
 
 CC_VERSIONS = {}
+LD_VERSIONS = {}
 
 
 class ExportSym(NamedTuple):
@@ -202,38 +203,82 @@ def get_cc_version(cc_bin):
     os.environ['LANG'] = "C"
 
     r = None
+    output = None
 
     try:
         # Run the compiler with --version and capture the output
         output = subprocess.check_output([cc_bin, '--version'], stderr=subprocess.DEVNULL)
-        # Decode the output from bytes to string and split into lines
-        lines = output.decode('utf-8').splitlines()
-
-        # Check if the output corresponds to GCC
-        if "Free Software Foundation" in lines[1]:
-            # Use regex to find the version number in the output lines
-            match = re.search(r'(\d+)\.(\d+)\.(\d+)', lines[0])
-            if match:
-                # If a version number is found, return it as a tuple of integers
-                r = ("gcc", tuple(map(int, match.groups())))
-            else:
-                # If no version number is found, return a generic version (0, 0, 0)
-                r = ("gcc", (0, 0, 0))
-        else:
-            # Assume Clang if not GCC, and attempt to extract version similarly
-            match = re.search(r'(\d+)\.(\d+)\.(\d+)', lines[0])
-            if match:
-                r = ("clang", tuple(map(int, match.groups())))
-            else:
-                r = ("clang", (0, 0, 0))
     finally:
         # Restore the original environment
         os.environ = bak
 
-    assert r is not None, "Couldn't parse C compiler version somehow???"
+    # Decode the output from bytes to string and split into lines
+    lines = output.decode('utf-8').splitlines()
+
+    # Check if the output corresponds to GCC
+    if "Free Software Foundation" in lines[1]:
+        # Use regex to find the version number in the output lines
+        match = re.search(r'(\d+)\.(\d+)\.(\d+)', lines[0])
+        if match:
+            # If a version number is found, return it as a tuple of integers
+            r = ("gcc", tuple(map(int, match.groups())))
+        else:
+            # If no version number is found, return a generic version (0, 0, 0)
+            r = ("gcc", (0, 0, 0))
+    else:
+        # Assume Clang if not GCC, and attempt to extract version similarly
+        match = re.search(r'(\d+)\.(\d+)\.(\d+)', lines[0])
+        if match:
+            r = ("clang", tuple(map(int, match.groups())))
+        else:
+            r = ("clang", (0, 0, 0))
+
+    assert r is not None, ("Couldn't parse C compiler version somehow??? " + cc_bin)
     CC_VERSIONS[cc_bin] = r  # cache result
     return r
 
+
+def get_ld_version(cc_bin):
+    global LD_VERSIONS
+
+    typver = LD_VERSIONS.get(cc_bin, None)
+    if typver is not None:
+        return typver
+
+    # Backup the current environment and set LANG to C to avoid localized outputs
+    bak = os.environ.copy()
+    os.environ['LANG'] = "C"
+
+    r = None
+    output = None
+
+    try:
+        # Run the compiler with -Wl,--version and capture the output
+        output = subprocess.check_output([cc_bin, '-Wl,--version'], stderr=subprocess.DEVNULL)
+    finally:
+        os.environ = bak  # restore original env
+
+    # Decode the output from bytes to string and split into lines
+    lines = output.decode('utf-8').splitlines()
+
+    if len(lines) > 1 and "Free Software Foundation" in lines[1]:  # GNU ld
+        match = re.search(r'(\d+)\.(\d+)\.(\d+)', lines[0])
+        if match:
+            r = ('gnuld', tuple(map(int, match.groups())))
+        else:
+            r = ('gnuld', (0, 0, 0))
+    elif "LLD" in lines[0]:  # LLVM LLD
+        match = re.search(r'(\d+)\.(\d+)\.(\d+)', lines[0])
+        if match:
+            r = ('lld', tuple(map(int, match.groups())))
+        else:
+            r = ('lld', (0, 0, 0))
+    else:
+        assert False, ("Unknown linker! " + lines[0])
+
+    assert r is not None, ("Couldn't parse linker version somehow??? " + cc_bin)
+    LD_VERSIONS[cc_bin] = r  # cache result
+    return r
 
 def is_valid_elf(f, arch):
     with open(f, 'rb') as ff:

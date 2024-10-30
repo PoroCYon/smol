@@ -38,10 +38,11 @@ def ld_link_final(verbose, cc_bin, arch, lddir, inobjs, output, ldflags, nx, sec
 
     archflag = '-m64' if arch == "x86_64" else '-m32'
 
-    cctyp, ccver = get_cc_version(cc_bin)
+    ldtyp, ldver = get_ld_version(cc_bin)
 
     workaround_args = []
-    if cctyp == 'gcc' and ccver[0] == 14:  # workaround time
+    # workaround for https://sourceware.org/bugzilla/show_bug.cgi?id=32067
+    if ldtyp == 'gnuld' and ldver >= (2,42,0) and ldver < (2,43,1):
         workaround_args += ["-fno-lto"]
 
     args = [cc_bin, *workaround_args, archflag, '-L', lddir, '-T', '%s/link_%s.ld'%(lddir,linkscr), '-no-pie']
