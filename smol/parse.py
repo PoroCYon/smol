@@ -15,6 +15,9 @@ implicit_syms = { '_GLOBAL_OFFSET_TABLE_' }
 unsupported_symtyp = { 'NOTYPE', 'TLS', 'OBJECT' } # TODO: support OBJECT, and maybe TLS too
 
 
+CC_VERSIONS = {}
+
+
 class ExportSym(NamedTuple):
     name: str
     typ: str
@@ -188,9 +191,17 @@ def get_cc_paths(cc_bin, arch):
 
 
 def get_cc_version(cc_bin):
+    global CC_VERSIONS
+
+    typver = CC_VERSIONS.get(cc_bin, None)
+    if typver is not None:
+        return typver
+
     # Backup the current environment and set LANG to C to avoid localized outputs
     bak = os.environ.copy()
     os.environ['LANG'] = "C"
+
+    r = None
 
     try:
         # Run the compiler with --version and capture the output
@@ -204,35 +215,24 @@ def get_cc_version(cc_bin):
             match = re.search(r'(\d+)\.(\d+)\.(\d+)', lines[0])
             if match:
                 # If a version number is found, return it as a tuple of integers
-                return ("gcc", tuple(map(int, match.groups())))
+                r = ("gcc", tuple(map(int, match.groups())))
             else:
                 # If no version number is found, return a generic version (0, 0, 0)
-                return ("gcc", (0, 0, 0))
+                r = ("gcc", (0, 0, 0))
         else:
             # Assume Clang if not GCC, and attempt to extract version similarly
             match = re.search(r'(\d+)\.(\d+)\.(\d+)', lines[0])
             if match:
-                return ("clang", tuple(map(int, match.groups())))
+                r = ("clang", tuple(map(int, match.groups())))
             else:
-                return ("clang", (0, 0, 0))
+                r = ("clang", (0, 0, 0))
     finally:
         # Restore the original environment
         os.environ = bak
 
-
-    bak = os.environ.copy()
-    os.environ['LANG'] = "C" # DON'T output localized search dirs!
-    output = subprocess.check_output([cc_bin, '--version'],
-                                     stderr=subprocess.DEVNULL)
-    os.environ = bak
-
-    lines = output.decode('utf-8').splitlines()
-    if "Free Software Foundation" in lines[1]: # GCC
-        verstr = lines[0].split()[-1]
-        return ("gcc", tuple(map(int, verstr.split('.'))))
-    else: # assume clang
-        verstr = lines[0].split()[-1]
-        return ("clang", tuple(map(int, verstr.split('.'))))
+    assert r is not None, "Couldn't parse C compiler version somehow???"
+    CC_VERSIONS[cc_bin] = r  # cache result
+    return r
 
 
 def is_valid_elf(f, arch):

@@ -6,6 +6,7 @@ import sys
 from .parse import *
 from .shared import eprintf
 
+
 def cc_relink_objs(verbose, cc_bin, arch, inputs, output, cflags):
     archflag = '-m64' if arch == "x86_64" else '-m32'
 
@@ -37,7 +38,13 @@ def ld_link_final(verbose, cc_bin, arch, lddir, inobjs, output, ldflags, nx, sec
 
     archflag = '-m64' if arch == "x86_64" else '-m32'
 
-    args = [cc_bin, archflag, '-L', lddir, '-T', '%s/link_%s.ld'%(lddir,linkscr), '-no-pie']
+    cctyp, ccver = get_cc_version(cc_bin)
+
+    workaround_args = []
+    if cctyp == 'gcc' and ccver[0] == 14:  # workaround time
+        workaround_args += ["-fno-lto"]
+
+    args = [cc_bin, *workaround_args, archflag, '-L', lddir, '-T', '%s/link_%s.ld'%(lddir,linkscr), '-no-pie']
     if not debug:
         args.append('-Wl,--oformat=binary')
         #args = [*args, '-T', lddir+'/link.ld', '-Wl,--oformat=binary']
